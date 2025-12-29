@@ -1,5 +1,9 @@
 # How Restrictive is U.S. Trade Policy?
 
+<p float="left" align="middle">
+  <img src="sept2025-histogram.png" width="475" /> 
+</p>
+
 This repository contains the code and data infrastructure for computing Trade Restrictiveness Indices (TRI) and alternative tariff measures for U.S. imports. This work is associated with the paper **"How Restrictive is U.S. Trade Policy?"** by Michael E. Waugh, available at: https://www.waugheconomics.com/uploads/2/2/5/6/22563786/how-restrictive-us-tradepolicy.pdf
 
 ## Overview
