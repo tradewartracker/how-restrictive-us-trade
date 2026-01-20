@@ -24,6 +24,7 @@ The repository implements methods to:
 ├── make-imports-hs10-dataset.ipynb  # Data download and preparation
 ├── TRI-all-country.ipynb            # Country-level TRI calculations
 ├── TRI-sector.ipynb                 # Sector-level TRI calculations
+├── TRI-composition.ipynb            # End-use category TRI calculations
 ├── data/
 │   ├── country-list-20.csv          # List of top 20 trading partners
 │   ├── country-list.csv             # Extended country list
@@ -126,6 +127,43 @@ Computes TRI measures disaggregated by HS2-level sectors (e.g., machinery, texti
 - Comparative visualizations across sectors
 - LaTeX table output to `table-sector.tex`
 
+### 4. End-Use Category Analysis (`TRI-composition.ipynb`)
+
+Computes TRI measures disaggregated by end-use categories based on the BEA's classification system.
+
+**End-Use Categories:**
+- **CONS**: Consumer goods 
+- **CAP**: Capital goods 
+- **INT**: Intermediate goods 
+
+**Key features:**
+- Merges HS6-level end-use classifications with HS10 import data
+- Excludes special classification codes (27, 30, 71, 88, 98, 99)
+- Calculates end-use-specific TRI measures over time
+- Tracks how tariff policies differentially impact different types of goods
+
+**Key Functions:**
+- `process_sectors_for_date(country_list, enduse, target_date, weight_year)`:
+  - Filters to specific end-use category
+  - Processes all countries within that category
+  - Returns end-use-specific tariff metrics
+
+- `create_tariff_metrics_by_date_sector(enduse_list, date_list, weight_year)`:
+  - Generates time series of TRI metrics for multiple end-use categories
+  - Returns DataFrame with date, ENDUSE, sqrtariff, meanweighted, and simplemean
+
+**Outputs:**
+- Panel plots showing TRI evolution across end-use categories
+- Time series metrics saved to `data/enduse-metrics.parquet`
+- Figures: `panel-enduse-tariffs.png` and `panel-enduse-tariffs.pdf`
+
+**Example Usage:**
+```python
+enduse_list = ["CONS", "CAP", "INT"]
+date_list = ["2025-01", "2025-02", ..., "2025-10"]
+metrics_df = create_tariff_metrics_by_date_sector(enduse_list, date_list, weight_year="2024")
+```
+
 ## Requirements
 
 ```python
@@ -152,13 +190,13 @@ pip install pandas matplotlib numpy scipy requests pyarrow
 
 3. Run the notebooks in order:
    - First: `make-imports-hs10-dataset.ipynb` (downloads data)
-   - Then: `TRI-all-country.ipynb` and/or `TRI-sector.ipynb` (compute metrics)
+   - Then: `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and/or `TRI-composition.ipynb` (compute metrics)
 
 ## Configuration Notes
 
 The notebooks contain hardcoded file paths specific to the development environment. Before running, update the following paths in each notebook:
 
-**In `TRI-all-country.ipynb` and `TRI-sector.ipynb`:**
+**In `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and `TRI-composition.ipynb`:**
 ```python
 country_list = pd.read_csv("C:\\heroku\\median-tariff\\data\\country-list-20.csv", ...)
 figfile = "C:\\github\\how-restrictive-us-trade\\figures\\"
