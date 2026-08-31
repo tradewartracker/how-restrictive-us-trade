@@ -6,12 +6,21 @@ Quick reference for running and updating the data pipeline.
 
 ## Monthly Update Checklist
 
-When new Census data is available for a given month (e.g., `2026-02`):
+> **Since 2026-08 the input data comes from the canonical `../trade-data` repo.**
+> The old Stage 1a/1b Census-download notebooks in this repo are retired — the
+> per-country parquets are now **built into this repo** by trade-data's
+> `notebooks/04-build-tri-country-product.ipynb`, which verifies each file
+> against the previous vintage before writing (see trade-data's README/STATUS).
 
-1. **Open** `make-imports-hs10-dataset-current-month.ipynb`
-2. **Update** the `date` variable to the new month: `date = "2026-02"`
-3. **Run all cells** — downloads the new month, appends to `*data-current.parquet`, rebuilds `ALL-data-current.parquet`
-4. **Open** `TRI-all-country.ipynb` and update `target_date = "2026-02"`
+When new Census data is available for a given month (e.g., `2026-07`):
+
+1. **In `../trade-data`**: `python scripts/build_history.py --end 2026-07`
+   (idempotent; the exit code is the verdict)
+2. **In `../trade-data`**: run `notebooks/04-build-tri-country-product.ipynb` —
+   rebuilds the 33 files in `data/imports-hs10/` here (30 countries + EU +
+   USMCA + TOTAL), gated so only appended months and revision-band changes pass
+3. **Commit this repo** — the refreshed parquets are the data update
+4. **Open** `TRI-all-country.ipynb` and update `target_date = "2026-07"`
 5. **Run all cells** — regenerates `results.tex`, figures, `top-country-metrics.parquet`
 6. Repeat for `TRI-sector.ipynb` and `TRI-composition.ipynb` if sector/end-use outputs are needed
 
@@ -31,13 +40,11 @@ If you just need to refresh the live tracker (not the paper outputs), you can sk
 Census Bureau API
        │
        ▼
-[Stage 1a] make-imports-hs10-dataset.ipynb        ← Run ONCE (full history 2013–present)
-       │
+[Stage 1] ../trade-data repo                      ← canonical HS10 base (imports + exports,
+       │   scripts/build_history.py                  2013–present, validated 7-check gate)
+       │   notebooks/04-build-tri-country-product.ipynb
        ▼
-data/imports-hs10/*data-current.parquet           ← One parquet file per country
-       │
-[Stage 1b] make-imports-hs10-dataset-current-month.ipynb   ← Run MONTHLY to append new data
-       │                └── also produces ALL-data-current.parquet
+data/imports-hs10/*data-current.parquet           ← One parquet file per country (33 files)
        │
        ├──▶ [Stage 2a] TRI-all-country.ipynb   ──▶ top-country-metrics.parquet
        │                                             results.tex (LaTeX macros)
@@ -60,30 +67,33 @@ data/imports-hs10/*data-current.parquet           ← One parquet file per count
 
 ## Notebooks
 
-### Stage 1a — `make-imports-hs10-dataset.ipynb` (run once)
+### Stage 1 — the `../trade-data` repo (replaces the retired 1a/1b notebooks)
 
-Downloads the full historical dataset from the Census HS API (2013–present).
+The canonical HS10 base: imports **and** exports, 2013-01 → present, 63
+entities, downloaded once and validated by a seven-check gate (duplicates,
+vintage, completeness, coverage, entity kind, grain reconciliation, frozen
+countries). See `../trade-data/README.md` for the two reading rules and
+`STATUS.md` there for the verification record.
 
-- Identifies top 31 trading partners by total import value
-- Explicitly adds the European Union (`0003`) and USMCA (`0020`) — these are **blocs that contain their own member countries**, not countries; never sum them together with individual countries. (Canada is `1220`, Mexico is `2010` — both already in `country-list.csv`.)
-- For each country, fetches monthly HS10 data: `CON_VAL_MO`, `CAL_DUT_MO`, `I_COMMODITY`
-- Skips files that already exist (idempotent / safe to re-run)
-- Outputs: `data/imports-hs10/{CTY_CODE}data-current.parquet` for ~33 countries + `TOTALdata-current.parquet`
+Monthly: `python scripts/build_history.py --end YYYY-MM` there, then its
+`notebooks/04-build-tri-country-product.ipynb`, which writes the 33 files into
+`data/imports-hs10/` here in the exact legacy schema — all-string columns,
+`time` as `YYYY-MM`, TOTAL without `CTY_CODE` — verified against the previous
+vintage before every write. The entity files: the 30 countries in
+`country-list.csv`, plus the EU (`0003`) and USMCA (`0020`) **blocs** (these
+contain their own member countries — never sum them with individual countries;
+Canada is `1220`, Mexico is `2010`), plus `TOTALdata-current.parquet`.
 
-### Stage 1b — `make-imports-hs10-dataset-current-month.ipynb` (run monthly)
+**Retired with the old notebooks** (kept in git history):
 
-Incremental updater — downloads one new month and appends it.
-
-**Variable to update each month:**
-```python
-date = "2026-02"   # ← change this
-```
-
-Steps:
-1. Downloads HS10 data for the single target month
-2. Saves snapshot as `{CTY_CODE}data-{YYYY-MM}.parquet`
-3. Appends snapshot onto existing `*data-current.parquet` for every country
-4. Rebuilds `ALL-data-current.parquet` (concatenation of all per-country current files)
+- `make-imports-hs10-dataset.ipynb` and
+  `make-imports-hs10-dataset-current-month.ipynb` — the separate Census pulls,
+  including the blind-append bug (re-running a month appended it twice)
+- `data/imports-hs10/{CTY_CODE}data-{YYYY-MM}.parquet` monthly snapshots
+  (untracked, gitignored; safe to delete)
+- `data/imports-hs10/ALL-data-current.parquet` — no notebook here reads it, and
+  `trade-miner` now reads trade-data's own ALL files directly (untracked,
+  gitignored; safe to delete)
 
 ### Stage 2a — `TRI-all-country.ipynb`
 
@@ -166,10 +176,10 @@ Live app: `https://tri-tracker-d17ad5511b2b.herokuapp.com/main-tri-tracker`
 
 | File | Description | Produced by |
 |---|---|---|
-| `data/imports-hs10/{CTY_CODE}data-current.parquet` | Full monthly time series per country | Stage 1a/1b |
-| `data/imports-hs10/{CTY_CODE}data-{YYYY-MM}.parquet` | Single-month snapshot per country | Stage 1b |
-| `data/imports-hs10/TOTALdata-current.parquet` | Aggregate across all countries | Stage 1a/1b |
-| `data/imports-hs10/ALL-data-current.parquet` | All countries concatenated | Stage 1b |
+| `data/imports-hs10/{CTY_CODE}data-current.parquet` | Full monthly time series per country | Stage 1 (`../trade-data` notebook 04) |
+| `data/imports-hs10/TOTALdata-current.parquet` | Census's published all-country total | Stage 1 (`../trade-data` notebook 04) |
+| `data/imports-hs10/{CTY_CODE}data-{YYYY-MM}.parquet` | *(retired)* single-month snapshots | old Stage 1b — gitignored, deletable |
+| `data/imports-hs10/ALL-data-current.parquet` | *(retired)* concatenation, read by nothing | old Stage 1b — gitignored, deletable |
 | `data/top-country-metrics.parquet` | TRI time series by country | Stage 2a |
 | `data/top-sector-metrics.parquet` | TRI time series by HS2 sector | Stage 2b |
 | `data/enduse-metrics.parquet` | TRI time series by end-use category | Stage 2c |
