@@ -72,12 +72,10 @@ release (~8:30 AM ET). Using `2026-07` as the example month:
    cd C:\heroku\TRI-tracker
    git add data/tri-all-country-data.parquet
    git commit -m "Update tracker data through 2026-07"
-   git push heroku main    # see note below
+   git push origin main
    ```
-   ⚠ There is currently **no `heroku` remote configured locally** — confirm on
-   the Heroku dashboard whether the app deploys from GitHub (then
-   `git push origin main` suffices, like the other tracker apps) or re-add the
-   remote. Live app:
+   The app **deploys via GitHub integration** (confirmed 2026-08-31) — pushing
+   `origin main` is the deploy; there is no `heroku` remote. Live app:
    `https://tri-tracker-d17ad5511b2b.herokuapp.com/main-tri-tracker`
 
 ### Sanity checks while reviewing any update
@@ -223,7 +221,7 @@ current statutory numbers.
 **Output:** writes directly into the separate tracker repo at
 `../TRI-tracker/data/tri-all-country-data.parquet` (also rewrites
 `data/top-country-metrics.parquet` here). Deploying is a separate manual step —
-see the checklist above, including the note about the missing `heroku` remote.
+commit in `../TRI-tracker` and `git push origin main` (GitHub integration).
 
 ---
 
