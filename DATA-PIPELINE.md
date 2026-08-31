@@ -15,6 +15,14 @@ When new Census data is available for a given month (e.g., `2026-02`):
 5. **Run all cells** — regenerates `results.tex`, figures, `top-country-metrics.parquet`
 6. Repeat for `TRI-sector.ipynb` and `TRI-composition.ipynb` if sector/end-use outputs are needed
 
+### To update ONLY the Heroku tracker site
+
+If you just need to refresh the live tracker (not the paper outputs), you can skip Stage 2a–2c and run **only** the tracker notebook — see [Stage 3](#stage-3--tri-tracker-updateipynb-heroku-tracker) below.
+
+1. Make sure Stage 1b has been run for the target month (so `*data-current.parquet` contains it)
+2. **Open** `TRI-tracker-update.ipynb`, set `target_date = "2026-02"`, **Run all cells**
+3. **Deploy**: in the separate `../TRI-tracker` repo, commit the regenerated parquet and `git push heroku main`
+
 ---
 
 ## Pipeline Stages
@@ -39,8 +47,13 @@ data/imports-hs10/*data-current.parquet           ← One parquet file per count
        │                                             table-sector.tex
        │                                             panel sector figures
        │
-       └──▶ [Stage 2c] TRI-composition.ipynb   ──▶ enduse-metrics.parquet
-                                                     panel-enduse-tariffs.png/.pdf
+       ├──▶ [Stage 2c] TRI-composition.ipynb   ──▶ enduse-metrics.parquet
+       │                                             panel-enduse-tariffs.png/.pdf
+       │
+       └──▶ [Stage 3]  TRI-tracker-update.ipynb ──▶ ../TRI-tracker/data/tri-all-country-data.parquet
+                    (+ external statutory CSVs        (feeds the Heroku Bokeh app)
+                     from ../../github/
+                     trade-war-redux-2025/)
 ```
 
 ---
@@ -52,7 +65,7 @@ data/imports-hs10/*data-current.parquet           ← One parquet file per count
 Downloads the full historical dataset from the Census HS API (2013–present).
 
 - Identifies top 31 trading partners by total import value
-- Explicitly adds Canada (`0003`) and Mexico (`0020`)
+- Explicitly adds the European Union (`0003`) and USMCA (`0020`) — these are **blocs that contain their own member countries**, not countries; never sum them together with individual countries. (Canada is `1220`, Mexico is `2010` — both already in `country-list.csv`.)
 - For each country, fetches monthly HS10 data: `CON_VAL_MO`, `CAL_DUT_MO`, `I_COMMODITY`
 - Skips files that already exist (idempotent / safe to re-run)
 - Outputs: `data/imports-hs10/{CTY_CODE}data-current.parquet` for ~33 countries + `TOTALdata-current.parquet`
@@ -111,6 +124,42 @@ Decomposes TRI by BEA end-use category using `data/hs6-enduse.parquet`.
 
 Outputs: `data/enduse-metrics.parquet`, `panel-enduse-tariffs.png/.pdf`
 
+### Stage 3 — `TRI-tracker-update.ipynb` (Heroku tracker)
+
+Standalone updater for the **live Heroku tracker site** — run this when you only need to
+refresh the interactive app, without regenerating any paper results (Stage 2a–2c).
+
+Reads the `*data-current.parquet` files (so Stage 1b must already include the target month)
+and recomputes the three country tariff measures as a daily time series.
+
+**Variable to update each month:**
+```python
+target_date = "2026-02"   # ← change this
+```
+
+**External dependency — pulled in from a *different* repo:** the notebook also reads statutory
+tariff data from `../../github/trade-war-redux-2025/` (outside this repo):
+
+| File | Used for |
+|---|---|
+| `country-by-time.csv` | Per-country announced/statutory effective tariff |
+| `daily-tariff-latest-data.csv` | Daily import-weighted "ALL COUNTRIES" statutory tariff |
+
+Refresh those CSVs in the `trade-war-redux-2025` repo first if you want current statutory numbers.
+
+**Output:** writes directly into the separate tracker repo at
+`../TRI-tracker/data/tri-all-country-data.parquet` (also rewrites `data/top-country-metrics.parquet`).
+
+**Deploy to Heroku:** the notebook only writes the parquet locally — it does **not** deploy.
+The `../TRI-tracker` repo is its own git repo with its own Heroku remote. To push live:
+```bash
+cd ../TRI-tracker
+git add data/tri-all-country-data.parquet
+git commit -m "Update tracker data through 2026-02"
+git push heroku main
+```
+Live app: `https://tri-tracker-d17ad5511b2b.herokuapp.com/main-tri-tracker`
+
 ---
 
 ## Data Files Reference
@@ -124,6 +173,9 @@ Outputs: `data/enduse-metrics.parquet`, `panel-enduse-tariffs.png/.pdf`
 | `data/top-country-metrics.parquet` | TRI time series by country | Stage 2a |
 | `data/top-sector-metrics.parquet` | TRI time series by HS2 sector | Stage 2b |
 | `data/enduse-metrics.parquet` | TRI time series by end-use category | Stage 2c |
+| `../TRI-tracker/data/tri-all-country-data.parquet` | Daily tariff series feeding the Heroku app | Stage 3 |
+| `../../github/trade-war-redux-2025/country-by-time.csv` | Per-country statutory tariffs (external repo) | Stage 3 input |
+| `../../github/trade-war-redux-2025/daily-tariff-latest-data.csv` | Daily ALL-COUNTRIES statutory tariff (external repo) | Stage 3 input |
 | `data/hs6-enduse.parquet` | BEA end-use classification (HS6 → CONS/CAP/INT) | static |
 | `data/country-list.csv` | ~33 country codes for main analysis | static |
 | `data/country-list-20.csv` | Top 20 trading partners (sector/composition) | static |
