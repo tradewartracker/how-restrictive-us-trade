@@ -60,6 +60,10 @@ release (~8:30 AM ET). Using `2026-07` as the example month:
      files — point the `\includegraphics` lines at the months you want.
    - Check every number quoted in prose against the regenerated macros, then
      rebuild the PDF.
+   - `TRI-sector.ipynb` only *appends* to `results-sector.tex` (its `'w'`
+     open is commented out) — delete the file first or the macros duplicate.
+   - Like-for-like check of the canonical data against the retired pipeline
+     at 2026-02: `paper/migration-check-2026-02.md` (clean refresh).
 
 ### Stage 3 — the live tracker (can run without Stage 2)
 
