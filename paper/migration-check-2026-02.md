@@ -54,7 +54,10 @@ the TRI-tracker's run of the same code on the same canonical files through
 (max |Δ| = 0.000 pp). The notebook pipeline is deterministic on this data.
 The HEAD file was kept (it is the superset).
 
-## Things the run surfaced (fix in Phase 2, before the 2026-07 regeneration)
+## Things the run surfaced
+
+All three fixed on 2026-09-04 (commits `2897b87` and the one carrying this
+line); kept here as the record of what the like-for-like run found.
 
 - `TRI-sector.ipynb` **appends** to `results-sector.tex` rather than
   rewriting it: the run produced the 12 macros twice. Duplicate
