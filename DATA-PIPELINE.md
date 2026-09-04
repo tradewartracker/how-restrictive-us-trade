@@ -50,7 +50,8 @@ release (~8:30 AM ET). Using `2026-07` as the example month:
    `data/top-country-metrics.parquet`.
 6. **`TRI-sector.ipynb`** and **`TRI-composition.ipynb`** (same
    `target_date`) if sector / end-use outputs are wanted.
-7. Paper gotchas (`C:\github\how-restrictive-us-trade-paper`):
+7. Paper gotchas (the paper lives in `paper/` since 2026-09-04; it was
+   `C:\github\how-restrictive-us-trade-paper` before):
    - Two savefigs are **commented out** (the Canada panel in TRI-all-country,
      the whole end-use figure in TRI-composition) — re-enable them or they
      silently keep their old vintage.

@@ -194,16 +194,12 @@ pip install pandas matplotlib numpy scipy requests pyarrow
 
 ## Configuration Notes
 
-The notebooks contain hardcoded file paths specific to the development environment. Before running, update the following paths in each notebook:
-
-**In `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and `TRI-composition.ipynb`:**
-```python
-country_list = pd.read_csv("C:\\heroku\\median-tariff\\data\\country-list-20.csv", ...)
-figfile = "C:\\github\\how-restrictive-us-trade\\figures\\"
-texfile = "C:\\github\\how-restrictive-us-trade\\results.tex"
-```
-
-Update these to match your local directory structure.
+The notebooks use paths relative to the repository root (their own directory),
+so run them from there. `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and
+`TRI-composition.ipynb` read `data/` and write the paper's generated pieces
+straight into `paper/` (`results*.tex`, `table*.tex`, `figures/`). The paper
+itself — `paper/how-restrictive-us-tradepolicy.tex` and its PDF — lives in
+this repository too; see `DATA-PIPELINE.md` for the update sequence.
 
 ## Key Concepts
 

@@ -212,3 +212,6 @@ data/imports-hs10/*data-20??-??.parquet
 
 # Claude Code local settings
 .claude/
+
+# Reference PDFs from the old private paper repo are copyrighted; never commit them
+paper/related-papers/
