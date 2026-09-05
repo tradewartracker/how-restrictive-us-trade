@@ -215,3 +215,11 @@ data/imports-hs10/*data-20??-??.parquet
 
 # Reference PDFs from the old private paper repo are copyrighted; never commit them
 paper/related-papers/
+
+# LaTeX build artifacts in paper/ (latexmk -c cleans the rest)
+paper/*.bbl
+paper/*.blg
+paper/*.aux
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz
