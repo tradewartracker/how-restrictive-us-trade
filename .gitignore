@@ -224,3 +224,6 @@ paper/*.fls
 paper/*.fdb_latexmk
 paper/*.synctex.gz
 paper/*.synctex
+
+# Regenerable panel built by scripts/build_panel.py (~200 MB); metrics in data/metrics are committed
+data/panel/
