@@ -271,14 +271,17 @@ The weights $s_{g,o}$ are measured in a similar way. They are the annual value o
 
 \section{The Restrictiveness of U.S. Trade Policy}\label{sec:results1}
 
-Figure \ref{fig:tariff-histogram} shows how restrictive U.S. trade policy has become. In both panels, I report a histogram of tariffs for two time periods: \olddate{} and \currentdate{}. The unit of observation here is the tariff associated with an HS10 code and country. The y-axis reports the share of U.S. imports that lies within each particular bin. Three vertical lines are shown which demarcate the three aggregate tariff measures discussed above: (i) the TRI tariff defined in (\ref{eq:TRI2}), (ii) the mean weighted tariff in (\ref{eq:average_tariff}), and (iii) duty divided by imports in (\ref{eq:duty_tariff}).
+Figure \ref{fig:tariff-histogram} shows how restrictive U.S. trade policy has become. Each panel reports a histogram of tariffs for one month: \olddate{}, before the trade war; \peakdate{}, the peak; \prerulingdate{}, the last month the IEEPA tariffs were collected; and \currentdate{}, the most recent month. The unit of observation here is the tariff associated with an HS10 code and country. The y-axis reports the share of U.S. imports that lies within each particular bin. Three vertical lines are shown which demarcate the three aggregate tariff measures discussed above: (i) the TRI tariff defined in (\ref{eq:TRI2}), (ii) the mean weighted tariff in (\ref{eq:average_tariff}), and (iii) duty divided by imports in (\ref{eq:duty_tariff}).
 
-\begin{figure}[p]
+\afterpage{%
+\clearpage
+\begin{landscape}
+\begin{figure}
 \centering
-\caption{The Distribution of Tariffs (HS10 by Country)\\}\label{fig:tariff-histogram}
-\includegraphics[height=0.45\textheight]{./figures/2024-07-histogram.pdf}\\[0.5em]
-\includegraphics[height=0.45\textheight]{./figures/2026-07-histogram.pdf}
+\caption{The Distribution of Tariffs (HS10 by Country)}\label{fig:tariff-histogram}
+\includegraphics[height=0.95\textheight]{./figures/panel-histograms.pdf}
 \end{figure}
+\end{landscape}}
 
 In \olddate{}, mean tariffs were low at \simpleMeanValuetwofour{} percent and nearly 75 percent of trade was being imported with near zero tariffs. However, there is meaningful dispersion in tariffs for the remaining 25 percent of imports. And this dispersion leads to a TRI tariff measure of \rmsValuetwofour{} percent.
 
