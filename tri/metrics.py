@@ -35,33 +35,56 @@ def merged(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str] | None =
     """
     p = panel if codes is None else panel[panel["CTY_CODE"].isin(codes)]
     m = p.merge(weights[KEYS + ["weight"]], on=KEYS, how="inner")
+    # Arithmetic on numpy arrays, not pandas Series: on frames this size pandas
+    # hands `*` and `**` to numexpr, and one run produced an all-zero w_t2 that
+    # could not be reproduced afterwards. Plain numpy is deterministic.
     with np.errstate(divide="ignore", invalid="ignore"):
-        m["tariff"] = m["CAL_DUT_MO"].to_numpy() / m["CON_VAL_MO"].to_numpy()
-    m["w_t2"] = m["weight"] * m["tariff"] ** 2
-    m["w_t"] = m["weight"] * m["tariff"]
+        tariff = m["CAL_DUT_MO"].to_numpy(dtype="float64") / m["CON_VAL_MO"].to_numpy(dtype="float64")
+    weight = m["weight"].to_numpy(dtype="float64")
+    m["tariff"] = tariff
+    m["w_t2"] = weight * tariff * tariff
+    m["w_t"] = weight * tariff
     return m
 
 
-def _measures(m: pd.DataFrame, weights: pd.DataFrame, by: list[str]) -> pd.DataFrame:
+RENORMALIZE_MODES = ("universe", "present")
+
+
+def _measures(m: pd.DataFrame, weights: pd.DataFrame, by: list[str], renormalize: str = "universe") -> pd.DataFrame:
     """Measures by month × ``by`` (``by`` may be empty for a single aggregate).
 
     ``m`` and ``weights`` must both carry the ``by`` columns; ``weights`` must
     already be restricted to the same entities as ``m``.
+
+    ``renormalize="universe"`` divides by the weight of every good in the weight
+    period (a good absent in month t counts as tariff-free; the notebooks'
+    behaviour). ``"present"`` divides by the weight of the goods present in
+    month t, so the weights sum to one every month and an absent good is
+    treated like the average present good. ``weight_coverage`` is the ratio of
+    the two denominators either way.
     """
-    num = (
-        m.groupby(["time"] + by, observed=True, sort=True)
-        .agg(w_t2=("w_t2", "sum"), w_t=("w_t", "sum"),
-             duty_total=("CAL_DUT_MO", "sum"), import_total=("CON_VAL_MO", "sum"),
-             w_present=("weight", "sum"), n_goods=("I_COMMODITY", "size"))
-        .reset_index()
-    )
+    if renormalize not in RENORMALIZE_MODES:
+        raise ValueError(f"renormalize must be one of {RENORMALIZE_MODES}, got {renormalize!r}")
+    # Plain column-wise sums on a numeric frame. (A six-way named aggregation on
+    # the merged frame returned a zero w_t2 column in one run -- see the note in
+    # REFACTOR-PLAN.md §6 -- so the summation is kept as simple as possible and
+    # guarded below.)
+    cols = {"w_t2": "w_t2", "w_t": "w_t", "CAL_DUT_MO": "duty_total", "CON_VAL_MO": "import_total", "weight": "w_present"}
+    g = m.groupby(["time"] + by, observed=True, sort=True)
+    num = g[list(cols)].sum().rename(columns=cols)
+    num["n_goods"] = g.size()
+    num = num.reset_index()
+    bad = (num["w_t2"] <= 0) & (num["w_t"] > 0)
+    if bad.any():
+        raise RuntimeError(f"squared-tariff sum is zero where the linear sum is positive in {int(bad.sum())} groups")
     if by:
         den = weights.groupby(by, observed=True)["weight"].sum().rename("w_universe").reset_index()
         out = num.merge(den, on=by, how="left")
     else:
         out = num.assign(w_universe=weights["weight"].sum())
-    out["sqrtariff"] = np.sqrt(out["w_t2"] / out["w_universe"])
-    out["meanweighted"] = out["w_t"] / out["w_universe"]
+    den = out["w_universe"] if renormalize == "universe" else out["w_present"]
+    out["sqrtariff"] = np.sqrt(out["w_t2"] / den)
+    out["meanweighted"] = out["w_t"] / den
     out["simplemean"] = out["duty_total"] / out["import_total"]
     out["weight_coverage"] = out["w_present"] / out["w_universe"]
     out = out.rename(columns={"time": "date"})
@@ -69,15 +92,16 @@ def _measures(m: pd.DataFrame, weights: pd.DataFrame, by: list[str]) -> pd.DataF
 
 
 # --- country -----------------------------------------------------------------
-def country_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], all_label: str = "ALL COUNTRIES") -> pd.DataFrame:
+def country_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], all_label: str = "ALL COUNTRIES",
+                    renormalize: str = "universe") -> pd.DataFrame:
     """Per-country measures (weights renormalised within each country) plus the
     aggregate over ``codes`` (weights normalised over all of them)."""
     m = merged(panel, weights, codes)
     w = weights[weights["CTY_CODE"].isin(codes)]
-    per = _measures(m, w, ["CTY_CODE"])
+    per = _measures(m, w, ["CTY_CODE"], renormalize)
     names = w.drop_duplicates("CTY_CODE").set_index("CTY_CODE")["CTY_NAME"]
     per.insert(2, "CTY_NAME", per["CTY_CODE"].map(names))
-    agg = _measures(m, w, [])
+    agg = _measures(m, w, [], renormalize)
     agg.insert(1, "CTY_CODE", "ALL")
     agg.insert(2, "CTY_NAME", all_label)
     out = pd.concat([agg, per], ignore_index=True).sort_values(["date", "CTY_CODE"], kind="stable")
@@ -99,13 +123,14 @@ def sector_shares(panel: pd.DataFrame, year: int = config.WEIGHT_YEAR) -> pd.Dat
     return bar.sort_values("CON_VAL_MO", ascending=False).reset_index(drop=True)
 
 
-def sector_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], hs2: list[str]) -> pd.DataFrame:
+def sector_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], hs2: list[str],
+                   renormalize: str = "universe") -> pd.DataFrame:
     """Measures by month × HS2 over the countries in ``codes``, weights
     normalised within each chapter."""
     m = merged(panel, weights, codes)
     m = m[m["HS2"].isin(hs2)]
     w = weights[weights["CTY_CODE"].isin(codes) & weights["HS2"].isin(hs2)]
-    return _measures(m, w, ["HS2"])
+    return _measures(m, w, ["HS2"], renormalize)
 
 
 # --- end use ----------------------------------------------------------------
@@ -114,7 +139,8 @@ def enduse_map() -> pd.Series:
     return pd.Series(e["BEC5EndUse"].to_numpy(), index=e["HS6"].astype(str).to_numpy(), name="ENDUSE")
 
 
-def enduse_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], categories: list[str] = config.ENDUSE_CATEGORIES) -> pd.DataFrame:
+def enduse_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str], categories: list[str] = config.ENDUSE_CATEGORIES,
+                   renormalize: str = "universe") -> pd.DataFrame:
     """Measures by month × BEC end-use category over ``codes``, weights
     normalised within each category. Goods whose HS6 has no mapping are excluded."""
     emap = enduse_map()
@@ -124,7 +150,7 @@ def enduse_metrics(panel: pd.DataFrame, weights: pd.DataFrame, codes: list[str],
     w = weights[weights["CTY_CODE"].isin(codes)].copy()
     w["ENDUSE"] = w["HS6"].map(emap)
     w = w[w["ENDUSE"].isin(categories)]
-    return _measures(m, w, ["ENDUSE"])
+    return _measures(m, w, ["ENDUSE"], renormalize)
 
 
 # --- histogram --------------------------------------------------------------

@@ -42,6 +42,10 @@ WEIGHT_YEAR = 2024
 # "annual": calendar-year import value (what the paper says).
 # "january": January only -- reproduces the notebooks as of 2026-09 (see REFACTOR-PLAN.md §2).
 WEIGHT_MODE_DEFAULT = "annual"
+# Denominator of the weighted measures: "universe" = every good with weight (an
+# absent good counts as tariff-free; the pre-refactor behaviour), "present" =
+# the goods present in the month. See REFACTOR-PLAN.md §6.1.
+RENORMALIZE_DEFAULT = "universe"
 
 SERIES_START = {"country": "2024-01", "sector": "2025-01", "enduse": "2025-01"}
 

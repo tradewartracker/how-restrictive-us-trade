@@ -56,8 +56,9 @@ def test_aggregate_identity_real_data():
     out = M.country_metrics(panel, w, config.COUNTRIES_30)
     shares = w[w["CTY_CODE"].isin(config.COUNTRIES_30)].groupby("CTY_CODE", observed=True)["weight"].sum()
     shares = shares / shares.sum()
+    assert (out["sqrtariff"] > 0).all() and (out["sqrtariff"] >= out["meanweighted"]).all(), "TRI must be positive and >= the mean"
     for date, grp in out.groupby("date"):
         allc = grp[grp["CTY_CODE"] == "ALL"]["sqrtariff"].iloc[0]
         per = grp[grp["CTY_CODE"] != "ALL"].set_index("CTY_CODE")["sqrtariff"]
         lhs, rhs = allc ** 2, (shares.loc[per.index] * per ** 2).sum()
-        assert np.isclose(lhs, rhs, rtol=1e-10), (date, lhs, rhs)
+        assert lhs > 0 and np.isclose(lhs, rhs, rtol=1e-10), (date, lhs, rhs)

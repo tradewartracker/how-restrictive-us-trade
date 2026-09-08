@@ -1,6 +1,7 @@
 {
- "weights": "january",
+ "weights": "annual",
  "weight_year": 2024,
+ "renormalize": "universe",
  "panel": {
   "start": "2024-01",
   "sources": {
@@ -141,8 +142,8 @@
   "decomposition.parquet": 961
  },
  "min_weight_coverage": {
-  "country": 0.35813802614545504,
-  "sector": 0.647915902705578,
-  "enduse": 0.9273701442423976
+  "country": 0.4341139946529222,
+  "sector": 0.6882588359552914,
+  "enduse": 0.9441550738615313
  }
 }
