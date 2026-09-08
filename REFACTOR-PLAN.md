@@ -1,6 +1,9 @@
 # Refactor plan: scripts that compute, notebooks that plot
 
-**Status:** plan agreed 2026-09-08; not started.
+**Status:** steps 1–9 done 2026-09-08 (commits `5d90c00` … see `git log`).
+Reproduction gate passes; weights switched to annual (`paper/weights-change-2026-07.md`);
+the present-goods renormalisation (§6.1) is implemented as `--renormalize present`
+and awaits a decision. One incident during step 8 is recorded in §6.2.
 **Goal:** the paper's numbers come from a fast, tested, single-definition
 pipeline; the notebooks only read, check, and draw. A monthly update becomes a
 few commands and the figure-tweak loop is seconds, not an hour.
@@ -207,6 +210,21 @@ HS10 lines had no weight at all); with annual weights it should be small, and
 everywhere the choice barely matters and renormalising is simply cleaner; if
 it is not, the HS10 code-change concordance becomes the real fix and is a
 separate task.
+
+### 6.2 Incident: a zero squared-tariff sum (2026-09-08)
+
+The first annual-weight build of `data/metrics/` came out with `sqrtariff`
+exactly zero in every row while `meanweighted` was correct, i.e. the
+`w_t2 = weight · tariff²` column summed to zero. The same code, rerun
+minutes later, gave the right numbers, and the state could not be reproduced.
+The merged frame is ~4.9M rows, above the size at which pandas hands
+arithmetic to `numexpr` and reductions to `bottleneck` (both installed).
+Whatever the cause, three changes make it impossible to ship silently:
+`tri/metrics.merged` does its arithmetic on numpy arrays; the group sums are
+plain column-wise sums with a guard that raises if `w_t2` is zero where
+`w_t` is positive; and `tri/__init__` switches off pandas' numexpr and
+bottleneck paths. `tests/test_metrics.py` also asserts the TRI is positive
+so the identity test cannot pass on zeros (it had).
 
 ## 7. Expected run times after
 

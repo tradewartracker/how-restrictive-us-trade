@@ -1,234 +1,104 @@
 # How Restrictive is U.S. Trade Policy?
 
 <p float="left" align="middle">
-  <img src="sept2025-histogram.png" width="475" /> 
+  <img src="paper/figures/panel-histograms.png" width="700" />
 </p>
 
-This repository contains the code and data infrastructure for computing Trade Restrictiveness Indices (TRI) and alternative tariff measures for U.S. imports. This work is associated with the paper **"How Restrictive is U.S. Trade Policy?"** by Michael E. Waugh, available at: https://www.waugheconomics.com/uploads/2/2/5/6/22563786/how-restrictive-us-tradepolicy.pdf
+Code, data pipeline, and the paper itself for **"How Restrictive is U.S. Trade
+Policy?"** by Michael E. Waugh. The current PDF is
+[paper/how-restrictive-us-tradepolicy.pdf](paper/how-restrictive-us-tradepolicy.pdf);
+the interactive tracker built from the same numbers is at
+https://www.tradewartracker.com.
 
-## Overview
+## What it computes
 
-The repository implements methods to:
-- Download and process U.S. import data at the HS10 commodity level from the U.S. Census Bureau
-- Calculate various tariff measures including:
-  - **TRI (Trade Restrictiveness Index)**: A weighted root-mean-square tariff measure
-  - **Weighted Mean Tariff**: Import-weighted average tariff
-  - **Simple Mean Tariff**: Ratio of total duties to total import values
-- Compute these measures across countries and sectors over time
-- Generate visualizations and LaTeX outputs for publication
+Three tariff measures from the U.S. Census Bureau's HS10-by-country import
+data (values and duties collected), monthly from 2024 on, for 30 trading
+partners, for the aggregate, by HS2 sector, and by end-use category:
 
-## Repository Structure
+| Measure | Formula | Column |
+|---|---|---|
+| **TRI** (Trade Restrictiveness Index) | $\sqrt{\sum_g w_g \tau_g^2 / \sum_g w_g}$ | `sqrtariff` |
+| **Mean weighted tariff** | $\sum_g w_g \tau_g / \sum_g w_g$ | `meanweighted` |
+| **Duties / imports** | $\sum_g \text{duties}_g / \sum_g \text{value}_g$ | `simplemean` |
+
+where a good $g$ is an HS10 code by country, $\tau_g$ is duties collected
+over import value in the month (the *de facto* applied tariff), and the
+weights $w_g$ are the good's import value over calendar 2024, normalised
+within whatever is being measured. The TRI is the uniform tariff with the
+same deadweight loss as the actual tariff structure; the gap between it and
+the mean is the cost of dispersion. See the paper for the derivation.
+
+## Repository layout
 
 ```
-.
-├── make-imports-hs10-dataset.ipynb  # Data download and preparation
-├── TRI-all-country.ipynb            # Country-level TRI calculations
-├── TRI-sector.ipynb                 # Sector-level TRI calculations
-├── TRI-composition.ipynb            # End-use category TRI calculations
-├── data/
-│   ├── country-list-20.csv          # List of top 20 trading partners
-│   ├── country-list.csv             # Extended country list
-│   ├── unique_commodities.csv       # HS10 commodity reference
-│   └── imports-hs10/                # Downloaded import data (parquet files)
-├── README.md
-└── LICENSE
+tri/                      the package: one definition of the loader, weights, measures, tex writers, plot helpers
+scripts/
+  build_panel.py          31 input files -> data/panel/tariff-panel.parquet   (once per data vintage, ~6 s)
+  build_metrics.py        panel -> data/metrics/*.parquet                     (every series, ~12 s)
+  build_paper_inputs.py   metrics -> paper/results*.tex, table*.tex
+tests/                    the refactor gate (reproduces tests/baseline-2026-07/) and formula checks
+TRI-all-country.ipynb     read data/metrics, check, draw the histograms and country panels
+TRI-sector.ipynb          ... the sector panels
+TRI-composition.ipynb     ... the end-use panel
+TRI-tracker-update.ipynb  ... the daily series for the tracker app
+data/
+  imports-hs10/           the 33 input files, built by ../trade-data (30 countries + EU + USMCA + TOTAL)
+  metrics/                every series the paper and tracker use (committed)
+  country-list.csv        the 30 countries; country-list-20.csv the top 20
+  hs6-enduse.parquet      HS6 -> BEC end-use category
+paper/                    the LaTeX source, generated fragments, figures, PDF
+DATA-PIPELINE.md          the monthly update, step by step
+REFACTOR-PLAN.md          design of the pipeline and its verification record
 ```
 
-## Data Source
+## Data
 
-All import data is retrieved from the **U.S. Census Bureau International Trade API**:
-- API Endpoint: `https://api.census.gov/data/timeseries/intltrade/imports/`
-- Data includes:
-  - HS10-level commodity codes
-  - Monthly import values (CON_VAL_MO)
-  - Calculated duties (CAL_DUT_MO)
-  - Country codes and names
-  - Data from 2013 onwards
+The input files come from the canonical dataset in the sibling repo
+`../trade-data` (Census International Trade API, HS10, 2013 → present,
+validated). This repository downloads nothing; its data stage is "run trade-data's
+build, then its notebook 04", which writes `data/imports-hs10/` here. Details
+and the API reference are in `DATA-PIPELINE.md`.
 
-## Workflow
+## Running it
 
-### 1. Data Collection (`make-imports-hs10-dataset.ipynb`)
-
-This notebook downloads HS10-level U.S. import data from the Census Bureau API.
-
-**Key steps:**
-1. Identifies top 31 trading partners by total import value
-2. Downloads monthly HS10 import data for each country from 2013-01 onwards
-3. Stores data in Parquet format in `data/imports-hs10/` directory
-4. Creates separate files for:
-   - Each individual country (e.g., `5700data-current.parquet` for China)
-   - Total imports across all countries (`TOTALdata-current.parquet`)
-
-**Usage:**
-```python
-# Run all cells in make-imports-hs10-dataset.ipynb
-# Output: Parquet files saved to data/imports-hs10/
-```
-
-**Note:** The notebook uses a public API key. For heavy usage, obtain your own key from the Census Bureau.
-
-### 2. Country-Level Analysis (`TRI-all-country.ipynb`)
-
-Calculates TRI and alternative tariff measures aggregated across all trading partners.
-
-**Key functions:**
-
-- `make_tariff_country_date(dfcntry, date)`: Extracts tariff data for a specific date
-- `make_good_country_year(dfcntry, year)`: Aggregates commodity-level data by year
-- `process_countries_for_date(country_list, target_date, weight_year)`: 
-  - Processes multiple countries
-  - Calculates import weights based on a reference year
-  - Returns combined dataset ready for TRI calculation
-
-**Tariff Measures Computed:**
-
-1. **TRI Tariff (sqrtariff)**: 
-   $$\text{TRI} = \sqrt{\sum_{i} w_i \tau_i^2}$$
-   where $w_i$ are import weights and $\tau_i$ are tariff rates
-
-2. **Weighted Mean Tariff**: 
-   $$\bar{\tau} = \sum_{i} w_i \tau_i$$
-
-3. **Simple Mean Tariff**: 
-   $$\text{Simple Mean} = \frac{\sum \text{Duties}}{\sum \text{Imports}}$$
-
-**Outputs:**
-- LaTeX macros saved to `results.tex` for paper integration
-- Time series plots of tariff measures
-- Histograms showing distribution of tariffs across commodities
-- Country-specific TRI calculations
-
-**Example Usage:**
-```python
-target_date = "2025-09"
-bigdf = process_countries_for_date(country_list, target_date, weight_year="2024")
-sqrtariff = ((bigdf["tariff"]**2 * bigdf["weights"]).sum())**0.5
-print(f"Weighted TRI Tariff: {sqrtariff:.2%}")
-```
-
-### 3. Sector-Level Analysis (`TRI-sector.ipynb`)
-
-Computes TRI measures disaggregated by HS2-level sectors (e.g., machinery, textiles, chemicals).
-
-**Key features:**
-- Identifies top 10-20 sectors by import value
-- Maps HS2 codes to descriptive sector names
-- Excludes special classification codes (98, 99) and specific sectors (27, 71)
-- Calculates sector-specific TRI measures over time
-
-**Function:**
-- `process_sectors_for_date(country_list, hscode, target_date, weight_year)`:
-  - Filters to specific HS2 sector
-  - Processes all countries within that sector
-  - Returns sector-specific tariff metrics
-
-**Outputs:**
-- Sector-by-sector TRI calculations
-- Comparative visualizations across sectors
-- LaTeX table output to `table-sector.tex`
-
-### 4. End-Use Category Analysis (`TRI-composition.ipynb`)
-
-Computes TRI measures disaggregated by end-use categories based on the BEA's classification system.
-
-**End-Use Categories:**
-- **CONS**: Consumer goods 
-- **CAP**: Capital goods 
-- **INT**: Intermediate goods 
-
-**Key features:**
-- Merges HS6-level end-use classifications with HS10 import data
-- Excludes special classification codes (27, 30, 71, 88, 98, 99)
-- Calculates end-use-specific TRI measures over time
-- Tracks how tariff policies differentially impact different types of goods
-
-**Key Functions:**
-- `process_sectors_for_date(country_list, enduse, target_date, weight_year)`:
-  - Filters to specific end-use category
-  - Processes all countries within that category
-  - Returns end-use-specific tariff metrics
-
-- `create_tariff_metrics_by_date_sector(enduse_list, date_list, weight_year)`:
-  - Generates time series of TRI metrics for multiple end-use categories
-  - Returns DataFrame with date, ENDUSE, sqrtariff, meanweighted, and simplemean
-
-**Outputs:**
-- Panel plots showing TRI evolution across end-use categories
-- Time series metrics saved to `data/enduse-metrics.parquet`
-- Figures: `panel-enduse-tariffs.png` and `panel-enduse-tariffs.pdf`
-
-**Example Usage:**
-```python
-enduse_list = ["CONS", "CAP", "INT"]
-date_list = ["2025-01", "2025-02", ..., "2025-10"]
-metrics_df = create_tariff_metrics_by_date_sector(enduse_list, date_list, weight_year="2024")
-```
-
-## Requirements
-
-```python
-pandas
-matplotlib
-numpy
-scipy
-requests
-pyarrow
-```
-
-## Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/how-restrictive-us-trade.git
-cd how-restrictive-us-trade
+pip install pandas numpy pyarrow matplotlib pytest
+python scripts/build_panel.py
+python scripts/build_metrics.py
+python -m pytest tests -q
+python scripts/build_paper_inputs.py --target 2026-07
 ```
 
-2. Install dependencies:
-```bash
-pip install pandas matplotlib numpy scipy requests pyarrow
-```
+Then open the notebooks from the repository root (paths are relative to it),
+set `target_date`, and Run All; each takes a few seconds. Their check cells
+refuse to plot if `data/metrics/` is not at the target month or was built with
+a different weight mode.
 
-3. Run the notebooks in order:
-   - First: `make-imports-hs10-dataset.ipynb` (downloads data)
-   - Then: `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and/or `TRI-composition.ipynb` (compute metrics)
+## Choices worth knowing
 
-## Configuration Notes
-
-The notebooks use paths relative to the repository root (their own directory),
-so run them from there. `TRI-all-country.ipynb`, `TRI-sector.ipynb`, and
-`TRI-composition.ipynb` read `data/` and write the paper's generated pieces
-straight into `paper/` (`results*.tex`, `table*.tex`, `figures/`). The paper
-itself — `paper/how-restrictive-us-tradepolicy.tex` and its PDF — lives in
-this repository too; see `DATA-PIPELINE.md` for the update sequence.
-
-## Key Concepts
-
-### Trade Restrictiveness Index (TRI)
-The TRI is a theoretically-motivated measure of trade restrictiveness that accounts for the dispersion of tariffs across commodities. Unlike simple averages, it captures how the variance in tariff rates affects trade patterns. Higher TRI values indicate more restrictive trade policies, with the gap between TRI and weighted mean tariff reflecting the degree of tariff dispersion.
-
-### Import Weights
-Weights are calculated based on import values from a reference year (typically 2024) to avoid endogeneity bias where tariff changes directly affect contemporaneous import values.
-
-### HS10 Classification
-The Harmonized System (HS) is an international nomenclature for the classification of products. HS10 is the most detailed level used by U.S. Customs, providing approximately 16,000+ distinct product categories.
+- **Weights are calendar-2024 import values** (`tri/config.py: WEIGHT_YEAR`).
+  Through the July 2026 vintage the notebooks used January 2024 only; the
+  switch and what it moved are recorded in `paper/weights-change-2026-07.md`.
+- **Weights renormalise within the grouping**: a country's TRI uses that
+  country's import shares, a sector's TRI the shares within the sector.
+- **The denominator runs over every good that had weight in 2024**; a good
+  absent in a month counts as tariff-free. `weight_coverage` in every metrics
+  file reports how much weight is present. `--renormalize present` divides by
+  the present goods instead.
+- **Sectors** exclude HS2 27 (petroleum), 71 (precious metals), 98 and 99;
+  sector and end-use measures run over the top-20 partners.
+- The country table's "All Countries" row is the top-20 aggregate; the prose
+  quotes the 30-country aggregate.
 
 ## Citation
 
-If you use this code or data, please cite:
-
 ```
 Waugh, Michael E. "How Restrictive is U.S. Trade Policy?"
-Available at: https://www.waugheconomics.com/uploads/2/2/5/6/22563786/how-restrictive-us-tradepolicy.pdf
+https://github.com/tradewartracker/how-restrictive-us-trade
 ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For questions or issues, please open an issue on the GitHub repository or contact the paper author through the website linked above.
-
-## Acknowledgments
-
-Data sourced from the U.S. Census Bureau's International Trade API. Special thanks to the Census Bureau for providing public API access to this valuable trade data.
+MIT — see [LICENSE](LICENSE). Data sourced from the U.S. Census Bureau's
+International Trade API.
